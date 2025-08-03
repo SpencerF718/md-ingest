@@ -34,7 +34,7 @@ def get_output_path():
             try:
                 if not os.path.exists(output_path):
                     os.makedirs(output_path)
-                    output_found = True
+                output_found = True
             except OSError as e:
                 print(
                     f"ERROR: Could not create directory {output_path}.  Because: {e}")
