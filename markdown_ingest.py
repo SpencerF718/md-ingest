@@ -1,5 +1,8 @@
 import os
 
+MARKDOWN_EXTENSION = ".md"
+DEFAULT_OUTPUT_FILENAME = "md_ingest.txt"
+
 
 def get_vault_path():
 
@@ -41,13 +44,33 @@ def get_output_path():
     return output_path
 
 
-def main():
+def get_file_names(vault_root_directory):
 
-    print("Obsidian Markdown Ingester: ")
+    markdown_files = []
+
+    for current_directory, subdirectories, files in os.walk(vault_root_directory):
+        for file_name in files:
+            if file_name.endswith(MARKDOWN_EXTENSION):
+                full_file_path = os.path.join(current_directory, file_name)
+                markdown_files.append(full_file_path)
+
+    return markdown_files
+
+
+def main():
 
     vault_path = get_vault_path()
     output_path = get_output_path()
-    print(f"Output path: {output_path}, Vault path: {vault_path}")
+
+    resolved_vault_path = os.path.abspath(os.path.expanduser(vault_path))
+    resolved_output_path = os.path.abspath(os.path.expanduser(output_path))
+
+    final_combined_notes_file = os.path.join(
+        resolved_output_path, DEFAULT_OUTPUT_FILENAME)
+
+    print(f"\nVault Path: {resolved_vault_path}")
+    print(f"Output Directory: {resolved_output_path}")
+    print(f"Combined notes will be saved to: {final_combined_notes_file}")
 
 
 if __name__ == "__main__":
