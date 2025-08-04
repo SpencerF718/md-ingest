@@ -8,10 +8,12 @@ FILE_HEADER_PREFIX = "FILE: "
 
 
 def get_vault_path():
+
     vault_found = False
     vault_path = ""
 
     while not vault_found:
+
         vault_path = input(
             r"Please enter the absolute path to your Obsidian vault. e.g. C:\Users\Name\Documents\Main")
 
@@ -25,12 +27,14 @@ def get_vault_path():
 
 
 def get_output_path():
+
     output_found = False
     output_path = ""
 
     while not output_found:
+
         output_path = input(
-            r"Please enter the absolute path to your output directory. e.g. C:\Users\Name\Documents\Output ")
+            r"Please enter the absolute path to your output directory. e.g. C:\Users\Name\Documents\Output")
 
         if os.path.isabs(output_path):
             try:
@@ -41,14 +45,14 @@ def get_output_path():
                 print(
                     f"ERROR: Could not create directory {output_path}. Because: {e}")
         else:
-            print(f"ERROR: Invalid path.")
+            print("ERROR: Invalid path.")
 
     return output_path
 
 
 def get_file_names(vault_root_directory):
-    markdown_files = []
 
+    markdown_files = []
     for current_directory, _, files in os.walk(vault_root_directory):
         for file_name in files:
             if file_name.endswith(MARKDOWN_EXTENSION):
@@ -58,7 +62,42 @@ def get_file_names(vault_root_directory):
     return markdown_files
 
 
+def generate_directory_tree(vault_path, md_files):
+
+    tree_lines = ["Directory structure:\n"]
+    file_tree = {}
+
+    for md_file in md_files:
+        relative_path = os.path.relpath(md_file, vault_path)
+        parts = relative_path.split(os.sep)
+        current_level = file_tree
+        for part in parts:
+            if part not in current_level:
+                current_level[part] = {}
+            current_level = current_level[part]
+
+    def build_tree_str(directory, prefix=""):
+
+        folders = sorted(
+            [name for name, content in directory.items() if content]
+        )
+
+        for i, name in enumerate(folders):
+            is_last = i == len(folders) - 1
+            connector = "└── " if is_last else "├── "
+            tree_lines.append(f"{prefix}{connector}{name}/\n")
+            new_prefix = "    " if is_last else "│   "
+            build_tree_str(directory[name], prefix + new_prefix)
+
+    root_name = os.path.basename(vault_path)
+    tree_lines.append(f"└── {root_name}/\n")
+    build_tree_str(file_tree, "    ")
+
+    return "".join(tree_lines)
+
+
 def combine_files(file_paths, base_directory):
+
     combined_content = []
 
     for file_path in file_paths:
@@ -84,6 +123,7 @@ def combine_files(file_paths, base_directory):
 
 
 def write_to_output_file(content_to_write, output_file_path):
+
     try:
         with open(output_file_path, 'w', encoding='utf-8') as f:
             f.write(content_to_write)
@@ -93,6 +133,7 @@ def write_to_output_file(content_to_write, output_file_path):
 
 
 def main():
+
     vault_path = get_vault_path()
     output_path = get_output_path()
 
@@ -107,9 +148,18 @@ def main():
     print(f"Combined notes will be saved to: {final_combined_notes_file}")
 
     found_markdown_files = get_file_names(resolved_vault_path)
-    combined_content = combine_files(found_markdown_files, resolved_vault_path)
 
-    write_to_output_file(combined_content, final_combined_notes_file)
+    directory_tree = generate_directory_tree(
+        resolved_vault_path, found_markdown_files
+    )
+
+    combined_content = combine_files(
+        found_markdown_files, resolved_vault_path
+    )
+
+    final_output = directory_tree + FILE_SEPARATOR + combined_content
+
+    write_to_output_file(final_output, final_combined_notes_file)
 
     print("\n--- Ingest Complete ---\n")
 
