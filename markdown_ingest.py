@@ -3,6 +3,8 @@ import re
 
 MARKDOWN_EXTENSION = ".md"
 DEFAULT_OUTPUT_FILENAME = "md_ingest.txt"
+DEFAULT_TOKEN_LIMIT = 50000
+CHARACTERS_PER_TOKEN = 4
 
 FILE_SEPARATOR = "\n\n" + "=" * 80 + "\n\n"
 FILE_HEADER_PREFIX = "FILE: "
@@ -14,7 +16,7 @@ def get_vault_path():
 
     while not vault_found:
         vault_path = input(
-            r"Please enter the absolute path to your Obsidian vault. (e.g. C:\Users\Name\Documents\Main): "
+            r"Please enter the absolute path to your Obsidian vault. e.g. C:\Users\Name\Documents\Main: "
         )
 
         if os.path.isabs(vault_path) and os.path.isdir(vault_path):
@@ -32,7 +34,7 @@ def get_output_path():
 
     while not output_found:
         output_path = input(
-            r"Please enter the absolute path to your output directory. (e.g. C:\Users\Name\Documents\Output): "
+            r"Please enter the absolute path to your output directory. e.g. C:\Users\Name\Documents\Output: "
         )
 
         if os.path.isabs(output_path):
@@ -68,6 +70,32 @@ def get_words_to_filter():
         )
         return [word.strip() for word in words_input.split(",") if word.strip()]
     return []
+
+
+def get_splitting_preference():
+    default_char_limit = DEFAULT_TOKEN_LIMIT * CHARACTERS_PER_TOKEN
+    split_choice = (
+        input("Do you want to split the output into multiple files? (yes/no): ")
+        .strip()
+        .lower()
+    )
+    if split_choice == "yes":
+        while True:
+            try:
+                limit_input = input(
+                    f"Enter the token limit per file (default: {DEFAULT_TOKEN_LIMIT}): "
+                )
+                if not limit_input:
+                    return default_char_limit
+
+                token_limit = int(limit_input)
+                if token_limit > 0:
+                    return token_limit * CHARACTERS_PER_TOKEN
+                else:
+                    print("Please enter a positive number for the token limit.")
+            except ValueError:
+                print("Invalid input. Please enter a number.")
+    return 0
 
 
 def apply_word_filter(content, words_to_filter):
@@ -139,19 +167,75 @@ def combine_files(file_paths, base_directory, words_to_filter):
     return "".join(combined_content)
 
 
-def write_to_output_file(content_to_write, output_file_path):
-    try:
-        with open(output_file_path, "w", encoding="utf-8") as f:
-            f.write(content_to_write)
+def write_to_output_file(content_to_write, output_file_path, split_character_limit):
+    if split_character_limit <= 0 or len(content_to_write) <= split_character_limit:
+        try:
+            with open(output_file_path, "w", encoding="utf-8") as f:
+                f.write(content_to_write)
             print(f"\nIngested notes saved to {output_file_path}")
-    except Exception as e:
-        print(f"ERROR: Could not write because: {e}")
+        except Exception as e:
+            print(f"ERROR: Could not write because: {e}")
+    else:
+        base_name, ext = os.path.splitext(output_file_path)
+        part_number = 1
+        current_position = 0
+
+        while current_position < len(content_to_write):
+
+            end_position = min(
+                current_position + split_character_limit, len(content_to_write)
+            )
+
+            potential_chunk = content_to_write[current_position:end_position]
+            last_separator_index = potential_chunk.rfind(FILE_SEPARATOR)
+
+            if last_separator_index != -1 and (
+                len(potential_chunk) - last_separator_index
+            ) < (split_character_limit / 2):
+                split_at = current_position + \
+                    last_separator_index + len(FILE_SEPARATOR)
+            else:
+                split_at = end_position
+
+            if (
+                split_at < len(content_to_write)
+                and content_to_write[split_at - len(FILE_SEPARATOR): split_at]
+                == FILE_SEPARATOR
+            ):
+                pass
+            elif split_at < len(content_to_write):
+                next_separator_index = content_to_write.find(
+                    FILE_SEPARATOR, split_at - len(FILE_SEPARATOR)
+                )
+                if (
+                    next_separator_index != -1
+                    and (next_separator_index - current_position)
+                    < (split_character_limit + len(FILE_SEPARATOR) * 2)
+                ):
+                    split_at = next_separator_index + len(FILE_SEPARATOR)
+
+            current_part_content = content_to_write[current_position:split_at]
+            output_file_name = f"{base_name}_part{part_number}{ext}"
+            try:
+                with open(output_file_name, "w", encoding="utf-8") as f:
+                    f.write(current_part_content)
+                print(
+                    f"Ingested notes part {part_number} saved to {output_file_name}"
+                )
+            except Exception as e:
+                print(
+                    f"ERROR: Could not write part {part_number} because: {e}")
+
+            current_position = split_at
+            part_number += 1
 
 
 def main():
     vault_path = get_vault_path()
     output_path = get_output_path()
     words_to_filter = get_words_to_filter()
+
+    split_character_limit = get_splitting_preference()
 
     resolved_vault_path = os.path.abspath(os.path.expanduser(vault_path))
     resolved_output_path = os.path.abspath(os.path.expanduser(output_path))
@@ -162,9 +246,13 @@ def main():
 
     print(f"\nVault Path: {resolved_vault_path}")
     print(f"Output Directory: {resolved_output_path}")
-    print(f"Combined notes will be saved to: {final_combined_notes_file}")
+    print(f"Combined notes will be saved to: {final_combined_notes_file}\n")
     if words_to_filter:
         print(f"Words to filter: {', '.join(words_to_filter)}")
+    if split_character_limit > 0:
+        display_token_limit = split_character_limit // CHARACTERS_PER_TOKEN
+        print(
+            f"Output will be split into files of approximately {display_token_limit} tokens each.")
 
     found_markdown_files = get_file_names(resolved_vault_path)
 
@@ -178,7 +266,8 @@ def main():
 
     final_output = directory_tree + FILE_SEPARATOR + combined_content
 
-    write_to_output_file(final_output, final_combined_notes_file)
+    write_to_output_file(
+        final_output, final_combined_notes_file, split_character_limit)
 
     print("\n--- Ingest Complete ---\n")
 
