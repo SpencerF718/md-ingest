@@ -64,7 +64,7 @@ def combine_files(file_paths, base_directory):
     for file_path in file_paths:
         try:
             relative_path = os.path.relpath(file_path, base_directory)
-            header = f"{FILE_HEADER_PREFIX}{relative_path}"
+            header = f"{FILE_HEADER_PREFIX}{relative_path}\n"
 
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
