@@ -3,9 +3,11 @@ import os
 MARKDOWN_EXTENSION = ".md"
 DEFAULT_OUTPUT_FILENAME = "md_ingest.txt"
 
+FILE_SEPARATOR = "\n\n" + "="*80 + "\n\n"
+FILE_HEADER_PREFIX = "FILE: "
+
 
 def get_vault_path():
-
     vault_found = False
     vault_path = ""
 
@@ -13,22 +15,22 @@ def get_vault_path():
         vault_path = input(
             r"Please enter the absolute path to your Obsidian vault. e.g. C:\Users\Name\Documents\Main")
 
-        if os.path.isabs(vault_path):
+        if os.path.isabs(vault_path) and os.path.isdir(vault_path):
             vault_found = True
         else:
-            print("ERROR: Invalid path.")
+            print(
+                "ERROR: Invalid or non-existent directory. Please enter a valid absolute path.")
 
     return vault_path
 
 
 def get_output_path():
-
     output_found = False
     output_path = ""
 
     while not output_found:
         output_path = input(
-            r"Please enter the absolute path to your output directory.  e.g. C:\Users\Name\Documents\Output")
+            r"Please enter the absolute path to your output directory. e.g. C:\Users\Name\Documents\Output ")
 
         if os.path.isabs(output_path):
             try:
@@ -37,7 +39,7 @@ def get_output_path():
                 output_found = True
             except OSError as e:
                 print(
-                    f"ERROR: Could not create directory {output_path}.  Because: {e}")
+                    f"ERROR: Could not create directory {output_path}. Because: {e}")
         else:
             print(f"ERROR: Invalid path.")
 
@@ -45,10 +47,9 @@ def get_output_path():
 
 
 def get_file_names(vault_root_directory):
-
     markdown_files = []
 
-    for current_directory, subdirectories, files in os.walk(vault_root_directory):
+    for current_directory, _, files in os.walk(vault_root_directory):
         for file_name in files:
             if file_name.endswith(MARKDOWN_EXTENSION):
                 full_file_path = os.path.join(current_directory, file_name)
@@ -57,8 +58,41 @@ def get_file_names(vault_root_directory):
     return markdown_files
 
 
-def main():
+def combine_files(file_paths, base_directory):
+    combined_content = []
 
+    for file_path in file_paths:
+        try:
+            relative_path = os.path.relpath(file_path, base_directory)
+            header = f"{FILE_HEADER_PREFIX}{relative_path}"
+
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            combined_content.append(header)
+            combined_content.append(content)
+            combined_content.append(FILE_SEPARATOR)
+
+        except UnicodeDecodeError:
+            print(
+                f"WARNING: Could not read file '{file_path}' due to encoding error. Skipping.")
+        except Exception as e:
+            print(
+                f"WARNING: An error occurred while reading file '{file_path}': {e}. Skipping.")
+
+    return "".join(combined_content)
+
+
+def write_to_output_file(content_to_write, output_file_path):
+    try:
+        with open(output_file_path, 'w', encoding='utf-8') as f:
+            f.write(content_to_write)
+            print(f"\nIngested notes saved to {output_file_path}")
+    except Exception as e:
+        print(f"ERROR: Could not write because: {e}")
+
+
+def main():
     vault_path = get_vault_path()
     output_path = get_output_path()
 
@@ -71,6 +105,13 @@ def main():
     print(f"\nVault Path: {resolved_vault_path}")
     print(f"Output Directory: {resolved_output_path}")
     print(f"Combined notes will be saved to: {final_combined_notes_file}")
+
+    found_markdown_files = get_file_names(resolved_vault_path)
+    combined_content = combine_files(found_markdown_files, resolved_vault_path)
+
+    write_to_output_file(combined_content, final_combined_notes_file)
+
+    print("\n--- Ingest Complete ---\n")
 
 
 if __name__ == "__main__":
