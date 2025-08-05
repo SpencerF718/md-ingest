@@ -29,5 +29,6 @@ If you need to frequently use this tool, the `config.json` file will be useful. 
 | `token_limit`     | An integer representing the maximum number of tokens per output file. `0` disables splitting.           | `50000`                                             |
 | `words_to_filter` | A list of strings. Any word in this list will be replaced with "REDACTED" in the output.                | `["password", "private", "name"]`                           |
 
+## Credit
 
-
+Inspired by the [gitingest repo](https://github.com/coderamp-labs/gitingest)
